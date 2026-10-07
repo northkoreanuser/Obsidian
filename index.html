@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vault</title>
+<style>
+:root{
+  --bg:#111318;--panel:#181b21;--panel2:#1d2129;--border:#2b3039;
+  --text:#d7dae0;--muted:#858c99;--accent:#8b7cf6;--accent2:#a89dff;
+  --code:#0d0f13;--code-text:#d5d9e1;--inline-code-bg:#242832;
+  --quote:#858cff;--quote-text:#aeb3be;--quote-bg:#ffffff03;
+  --heading:#f0f1f4;--hover-bg:#ffffff08;--shadow:0 14px 40px #0005;
+}
+:root[data-theme="light"]{
+  --bg:#f7f7f8;--panel:#ffffff;--panel2:#eef0f3;--border:#dde1e7;
+  --text:#20242b;--muted:#6a7180;--accent:#7c5cf0;--accent2:#6247c4;
+  --code:#f1f2f5;--code-text:#2a2e37;--inline-code-bg:#e6e8ed;
+  --quote:#7c5cf0;--quote-text:#4a4f5a;--quote-bg:#00000006;
+  --heading:#14161b;--hover-bg:#00000009;--shadow:0 14px 40px #0002;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit}
+button{cursor:pointer;color:inherit}
+.hidden{display:none!important}
+.spacer{flex:1 1 auto}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ic{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+body{overflow:hidden}
+.app{height:100%;display:flex;--side:270px}
+.sidebar{flex:0 0 var(--side);min-width:0;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--border)}
+.side-resizer{flex:0 0 5px;margin-left:-3px;cursor:col-resize;z-index:2;touch-action:none}
+.side-resizer:hover,.app.resizing .side-resizer{background:var(--accent)}
+.app.resizing{user-select:none}.app.resizing iframe{pointer-events:none}
+.app.side-closed .sidebar,.app.side-closed .side-resizer{display:none}
+.main{flex:1 1 0;min-width:0;display:flex;flex-direction:column}
+.topbar{flex:0 0 46px;display:flex;align-items:center;gap:6px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--border);min-width:0}
+.crumbs{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.title{flex:0 1 320px;min-width:60px;height:30px;padding:0 8px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--heading);font-weight:600;font-size:14px;text-overflow:ellipsis}
+.title:not(:disabled):not([readonly]):hover{border-color:var(--border)}
+.title:not(:disabled):not([readonly]):focus{background:var(--panel2)}
+.title[readonly]{cursor:default}
+.tag{font-size:11px;padding:2px 7px;border-radius:10px;border:1px solid var(--border);color:var(--muted);white-space:nowrap}
+.tag.unsaved{color:var(--accent2);border-color:var(--accent)}
+.workspace{flex:1 1 0;min-height:0;display:flex}
+.editor-pane,.preview-pane{flex:1 1 0;min-width:0;overflow:auto}
+.editor-pane{border-right:1px solid var(--border)}
+.editor-wrap{max-width:900px;margin:auto;padding:40px 56px 100px;min-height:100%;display:flex}
+#editor{flex:1;width:100%;min-height:calc(100vh - 200px);resize:none;border:0;outline:0;background:transparent;color:var(--text);font:15px/1.75 "SFMono-Regular",Consolas,"Liberation Mono",monospace;tab-size:2}
+.preview-pane{position:relative}
+#htmlFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.blank{flex:1;display:none;align-items:center;justify-content:center;overflow:auto}
+.workspace[data-view="edit"] .preview-pane{display:none}
+.workspace[data-view="edit"] .editor-pane{border-right:0}
+.workspace[data-view="read"] .editor-pane{display:none}
+.workspace[data-kind="none"] .editor-pane,.workspace[data-kind="none"] .preview-pane{display:none}
+.workspace[data-kind="none"] .blank{display:flex}
+.workspace[data-kind="text"] .preview-pane{display:none}
+.workspace[data-kind="text"] .editor-pane{display:block;border-right:0;overflow:hidden}
+.workspace[data-kind="text"] .editor-wrap{max-width:none;padding:0;height:100%}
+.workspace[data-kind="text"] #editor{min-height:0;height:100%;padding:24px 32px 60px}
+.workspace[data-kind="view"] .editor-pane{display:none}
+.workspace[data-kind="view"] .preview-pane{display:block}
+.status{flex:0 0 26px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 12px;background:var(--panel);border-top:1px solid var(--border);color:var(--muted);font:11px "SFMono-Regular",Consolas,monospace;white-space:nowrap;overflow:hidden}
+.status-right{display:flex;gap:15px}
+.scrim{position:fixed;inset:0;background:#0007;z-index:19}
+@media(max-width:760px){
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(86vw,320px);z-index:20;box-shadow:var(--shadow)}
+  .side-resizer{display:none}
+  .crumbs{display:none}
+  .workspace{flex-direction:column}
+  .editor-pane{border-right:0;border-bottom:1px solid var(--border)}
+  .editor-wrap,.preview{padding:24px 18px 70px}
+  #editor{min-height:40vh}
+}
+.side-head{flex:0 0 46px;display:flex;align-items:center;gap:2px;padding:0 8px 0 14px;border-bottom:1px solid var(--border)}
+.vault-name{flex:1;min-width:0;font-weight:700;font-size:14px;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-search{flex:0 0 auto;padding:8px 10px 6px}
+.side-search input{width:100%;height:30px;padding:0 9px;border:1px solid var(--border);border-radius:7px;background:var(--bg);color:var(--text);font-size:13px;outline:0}
+.side-search input:focus{border-color:var(--accent)}
+.tree{flex:1 1 0;min-height:0;overflow:auto;padding:2px 6px 12px;font-size:13.5px;user-select:none}
+.row{--d:0;display:flex;align-items:center;gap:5px;height:28px;padding:0 4px 0 calc(6px + var(--d) * 14px);border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap}
+.row:hover{background:var(--hover-bg)}
+.row.active{background:var(--accent);color:#fff}
+.row .ic{width:15px;height:15px;color:var(--muted)}
+.row.active .ic{color:#fff}
+.row .chev{transition:transform .12s}
+.row.open > .chev{transform:rotate(90deg)}
+.row .name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.row .sub{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:11.5px}
+.row.active .sub{color:#fffc}
+.row.dir .name{font-weight:600}
+.row .ext{color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em}
+.row.active .ext{color:#fffc}
+.row .mark{flex:0 0 7px;width:7px;height:7px;border-radius:50%}
+.row.unsaved .mark{background:var(--accent2)}
+.row.active.unsaved .mark{background:#fff}
+.row .more{flex:0 0 22px;width:22px;height:22px;display:none;align-items:center;justify-content:center;border:0;border-radius:5px;background:transparent;padding:0}
+.row:hover .more,.row.active .more{display:inline-flex}
+.row .more:hover{background:#ffffff22}
+.tree-note{padding:8px 10px;color:var(--muted);font-size:12.5px;line-height:1.5}
+.tree.droptarget{outline:2px dashed var(--accent);outline-offset:-4px;border-radius:8px}
+.side-foot{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--border);font-size:12px}
+.changes{flex:1;min-width:0;height:28px;padding:0 9px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--muted);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.changes.has{color:var(--accent2);border-color:var(--accent)}
+.changes:hover{background:var(--hover-bg)}
+.side-foot a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.side-foot a:hover{color:var(--text)}
+.section{display:flex;align-items:center;gap:6px;height:26px;margin:10px 0 2px;padding:0 4px 0 8px;border-radius:6px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em;cursor:pointer;white-space:nowrap}
+.section:first-child{margin-top:2px}
+.section:hover{background:var(--hover-bg);color:var(--text)}
+.section.target{color:var(--accent2)}
+.section .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.section .more{flex:0 0 22px;width:22px;height:22px;display:none;align-items:center;justify-content:center;border:0;border-radius:5px;background:transparent;padding:0}
+.section:hover .more{display:inline-flex}
+.srcseg{display:flex;margin:8px 10px 0}
+.srcseg button{flex:1;width:auto;height:26px;font-size:12.5px;white-space:nowrap}
+.srcseg button:disabled{opacity:.4;cursor:not-allowed}
+.srcinfo{flex:1;min-width:0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree-note .btn{margin-top:10px}
+.preview{max-width:900px;margin:auto;padding:48px 64px 100px;font-size:16px;line-height:1.8}
+.preview h1,.preview h2,.preview h3,.preview h4,.preview h5,.preview h6{line-height:1.25;color:var(--heading);margin:1.5em 0 .55em}
+.preview h1{font-size:2.15em}.preview h2{font-size:1.65em}.preview h3{font-size:1.3em}
+.preview p{margin:.75em 0}.preview a{color:var(--accent2)}
+.preview blockquote{border-left:3px solid var(--quote);margin:1em 0;padding:.15em 1em;color:var(--quote-text);background:var(--quote-bg)}
+.preview code{font: .9em "SFMono-Regular",Consolas,monospace;background:var(--inline-code-bg);color:var(--text);border-radius:5px;padding:.15em .38em}
+.preview pre{background:var(--code);border:1px solid var(--border);border-radius:9px;padding:16px;overflow:auto}
+.preview pre code{background:transparent;padding:0;color:var(--code-text)}
+.codewrap{position:relative}
+.code-copy{position:absolute;top:8px;right:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--panel);color:var(--muted);border-radius:6px;cursor:pointer;opacity:0;transition:opacity .12s;font-size:13px}
+.codewrap:hover .code-copy{opacity:1}
+.code-copy:hover{background:var(--hover-bg);color:var(--text)}
+.code-copy.copied{opacity:1;color:var(--accent)}
+.preview ul,.preview ol{padding-left:1.7em}
+.preview table{border-collapse:collapse;width:100%;margin:1em 0}
+.preview th,.preview td{border:1px solid var(--border);padding:8px 10px;text-align:left}
+.preview th{background:var(--panel2)}
+.preview table.frontmatter{background:var(--panel2);border:1px solid var(--border);border-radius:8px;font-size:.85em;margin:0 0 1.4em}
+.preview table.frontmatter th,.preview table.frontmatter td{border:0;border-bottom:1px solid var(--border);padding:6px 12px}
+.preview table.frontmatter tr:last-child th,.preview table.frontmatter tr:last-child td{border-bottom:0}
+.preview table.frontmatter th{background:transparent;color:var(--muted);font-weight:600;white-space:nowrap;width:1%}
+.preview hr{border:0;border-top:1px solid var(--border);margin:2em 0}
+.preview img{max-width:100%;border-radius:8px}
+.task{list-style:none;margin-left:-1.35em}
+.task input{accent-color:var(--accent);margin-right:7px}
+.preview a.wikilink{color:var(--accent2);text-decoration:none;border-bottom:1px dashed var(--accent2);cursor:pointer}
+.preview a.wikilink.missing{color:var(--muted);border-bottom-color:var(--muted)}
+.fileview{max-width:900px;margin:auto;padding:48px 32px;text-align:center;color:var(--muted)}
+.fileview img{max-width:100%;border-radius:8px;box-shadow:var(--shadow);background:#fff}
+.fileview .linkbtn{margin:0 6px}
+.iconbtn{width:30px;height:30px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--muted);padding:0}
+.iconbtn:hover{background:var(--hover-bg);color:var(--text)}
+.btn{height:34px;padding:0 14px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);font-size:13.5px}
+.btn:hover{background:var(--hover-bg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover{filter:brightness(1.1);background:var(--accent)}
+.btn.danger{background:#d9463e;border-color:#d9463e;color:#fff}
+.linkbtn{border:0;background:none;color:var(--accent2);padding:0 2px;font-weight:600}
+.linkbtn:hover{text-decoration:underline}
+.seg{display:inline-flex;padding:2px;gap:2px;border-radius:8px;background:var(--panel2);border:1px solid var(--border)}
+.seg button{width:30px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--muted);padding:0}
+.seg button:hover{color:var(--text)}
+.seg button.active{background:var(--accent);color:#fff}
+.seg.disabled{opacity:.4;pointer-events:none}
+.blank-inner{max-width:440px;padding:32px;text-align:center}
+.blank-inner h1{margin:0 0 8px;color:var(--heading);font-size:26px}
+.blank-inner p{margin:0 0 20px;color:var(--muted);line-height:1.6}
+.blank-actions{display:flex;gap:8px;justify-content:center;margin-bottom:26px}
+.blank-keys{list-style:none;margin:0;padding:0;color:var(--muted);font-size:12.5px;line-height:2}
+kbd,.blank-keys code{font:11.5px "SFMono-Regular",Consolas,monospace;padding:1px 5px;border:1px solid var(--border);border-radius:4px;background:var(--panel2);color:var(--text)}
+.ctx{position:fixed;z-index:40;min-width:190px;padding:5px;border-radius:9px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow)}
+.ctx button{display:block;width:100%;padding:7px 10px;border:0;border-radius:6px;background:transparent;color:var(--text);text-align:left;font-size:13px;white-space:nowrap}
+.ctx button:hover{background:var(--hover-bg)}
+.ctx button.danger{color:#ff7d76}
+.ctx hr{border:0;border-top:1px solid var(--border);margin:4px 2px}
+.modal{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:16vh 16px 16px;background:#0008}
+.modalbox{width:min(420px,100%);padding:18px;border-radius:12px;background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow)}
+.modalbox h3{margin:0 0 10px;color:var(--heading);font-size:15px}
+.modalbox p{margin:0 0 12px;color:var(--muted);font-size:13.5px;line-height:1.6;white-space:pre-line}
+.modalbox input{width:100%;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);outline:0}
+.modalbox input:focus{border-color:var(--accent)}
+.modal-err{min-height:18px;margin-top:5px;color:#ff7d76;font-size:12px}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);z-index:60;max-width:min(600px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:10px;background:var(--heading);color:var(--bg);box-shadow:var(--shadow);font-size:13.5px}
+.toast.error{background:#d9463e;color:#fff}
+.toast .linkbtn{color:inherit;text-decoration:underline;white-space:nowrap}
+.dropveil{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;background:#8b7cf622;pointer-events:none}
+.dropveil div{padding:18px 26px;border:2px dashed var(--accent);border-radius:14px;background:var(--panel);font-weight:600}
+@media(max-width:760px){.preview{padding:24px 18px 70px}}
+.iconbtn:disabled{opacity:.35;cursor:default}
+</style>
+</head>
+<body>
+
+<svg class="hidden" aria-hidden="true">
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/></symbol>
+  <symbol id="i-newnote" viewBox="0 0 24 24"><path d="M12 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8l4 4v3M14 4v4h4M17 14v6M14 17h6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-newfolder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 11v5M9.5 13.5h5"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4"/></symbol>
+  <symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 7L4 12l5 5M4 12h10a6 6 0 0 1 0 12"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/></symbol>
+  <symbol id="i-read" viewBox="0 0 24 24"><path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+</svg>
+
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="파일 트리">
+    <div class="side-head">
+      <div class="vault-name" id="vaultName">Vault</div>
+      <button class="iconbtn" id="newNoteBtn" title="새 노트 (Alt+N)"><svg class="ic"><use href="#i-newnote"/></svg></button>
+      <button class="iconbtn" id="newFolderBtn" title="새 폴더"><svg class="ic"><use href="#i-newfolder"/></svg></button>
+      <button class="iconbtn" id="refreshBtn" title="목록 다시 읽기"><svg class="ic"><use href="#i-refresh"/></svg></button>
+    </div>
+    <div class="seg srcseg" id="sourceSeg" role="group" aria-label="저장 방식">
+      <button data-src="repo" title="저장소: 올라가 있는 노트를 읽습니다 (읽기 전용)">저장소</button>
+      <button data-src="folder" title="폴더: 직접 고른 폴더에 .md 파일로 바로 저장합니다">폴더</button>
+      <button data-src="local" title="브라우저: 이 브라우저에 저장합니다 (ZIP 으로 내보내기)">브라우저</button>
+    </div>
+    <div class="side-search"><input id="filterInput" type="search" placeholder="노트 찾기 (Ctrl+O)" autocomplete="off" spellcheck="false"></div>
+    <nav class="tree" id="tree" role="tree"></nav>
+    <div class="side-foot">
+      <span class="srcinfo" id="srcInfo"></span>
+      <a id="repoLink" class="hidden" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+    </div>
+  </aside>
+  <div class="side-resizer" id="sideResizer" title="끌어서 너비 조절"></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="iconbtn" id="sideToggle" title="사이드바 접기/펴기 (Ctrl+\)"><svg class="ic"><use href="#i-side"/></svg></button>
+      <span class="crumbs" id="crumbs"></span>
+      <input id="titleInput" class="title" type="text" spellcheck="false" autocomplete="off" aria-label="노트 이름" disabled>
+      <span class="tag hidden" id="stateTag"></span>
+      <span class="spacer"></span>
+      <button class="iconbtn" id="linkBtn" title="이 노트 링크 복사"><svg class="ic"><use href="#i-link"/></svg></button>
+      <button class="iconbtn" id="saveBtn" title="저장 (Ctrl+S)"><svg class="ic"><use href="#i-save"/></svg></button>
+      <div class="seg" id="viewSeg" role="group" aria-label="보기 방식 (Ctrl+E 로 편집/읽기 전환)">
+        <button data-view="edit" title="편집"><svg class="ic"><use href="#i-edit"/></svg></button>
+        <button data-view="split" title="나란히"><svg class="ic"><use href="#i-split"/></svg></button>
+        <button data-view="read" title="읽기"><svg class="ic"><use href="#i-read"/></svg></button>
+      </div>
+      <button class="iconbtn" id="themeBtn" title="밝게 / 어둡게"><svg class="ic"><use id="themeIcon" href="#i-sun"/></svg></button>
+    </header>
+
+    <main class="workspace" id="workspace" data-view="split" data-kind="none">
+      <section class="editor-pane"><div class="editor-wrap"><textarea id="editor" spellcheck="false" aria-label="편집기"></textarea></div></section>
+      <section class="preview-pane">
+        <article class="preview" id="preview"></article>
+        <iframe id="htmlFrame" class="hidden" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)"></iframe>
+      </section>
+      <section class="blank" id="blank">
+        <div class="blank-inner">
+          <h1 id="blankTitle">Vault</h1>
+          <p id="blankText">왼쪽 트리에서 노트를 고르거나 새 노트를 만드세요.</p>
+          <div class="blank-actions">
+            <button class="btn primary hidden" id="blankConnect">폴더 고르기</button>
+            <button class="btn" id="blankNew">새 노트 만들기</button>
+            <button class="btn" id="blankFind">노트 찾기</button>
+          </div>
+          <ul class="blank-keys">
+            <li><kbd>Alt</kbd>+<kbd>N</kbd> 새 노트</li>
+            <li><kbd>Ctrl</kbd>+<kbd>O</kbd> 노트 찾기</li>
+            <li><kbd>Ctrl</kbd>+<kbd>E</kbd> 편집 / 읽기 전환</li>
+            <li><kbd>Ctrl</kbd>+<kbd>S</kbd> 저장</li>
+            <li><code>[[노트 이름]]</code> 으로 노트끼리 연결</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="status">
+      <span id="saveInfo"></span>
+      <span class="status-right"><span id="words"></span><span id="chars"></span><span id="pos"></span></span>
+    </footer>
+  </div>
+</div>
+
+<div class="scrim hidden" id="scrim"></div>
+<div class="ctx hidden" id="ctxMenu" role="menu"></div>
+<div class="modal hidden" id="modal" role="dialog" aria-modal="true">
+  <form class="modalbox" id="modalForm">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody" class="hidden"></p>
+    <input id="modalInput" type="text" spellcheck="false" autocomplete="off">
+    <div class="modal-err" id="modalErr"></div>
+    <div class="modal-actions"><button type="button" class="btn" id="modalCancel">취소</button><button type="submit" class="btn primary" id="modalOk">확인</button></div>
+  </form>
+</div>
+<div class="toast hidden" id="toast" role="status" aria-live="polite"><span id="toastMsg"></span><button type="button" class="linkbtn hidden" id="toastAct"></button></div>
+<div class="dropveil hidden" id="dropVeil"><div>놓으면 볼트로 가져옵니다</div></div>
+
+<script>
+const $=id=>document.getElementById(id);const SELF_NAME=decodeURIComponent(location.pathname.slice(location.pathname.lastIndexOf('/')+1));const ROOT_URL=(()=>{let dir=location.pathname.replace(/[^/]*$/,'');const i=dir.indexOf('/_NIH_ROOT_/');if(i>=0)dir=dir.slice(0,i+1);const base=location.protocol+'//'+location.host+dir;const param=new URLSearchParams(location.search).get('root');if(!param)return base;try{return new URL(param.replace(/\/*$/,'/'),base).href;}catch(e){return base;}})();const VAULT_NAME=(()=>{const segs=decodeURIComponent(new URL(ROOT_URL).pathname).split('/').filter(Boolean);return segs.length?segs[segs.length-1]:(location.host||'Vault');})();const TEXT_EXT=new Set(['md','markdown','txt','html','htm','css','js','json','csv','tsv','xml','yml','yaml','ini','log','ahk','py','cmd','bat','sh','ent']);const IMG_EXT=new Set(['png','jpg','jpeg','gif','webp','svg','bmp','ico','avif']);const MAX_TEXT_BYTES=3*1024*1024;const pathJoin=(dir,name)=>dir?dir+'/'+name:name;const dirOf=p=>p.includes('/')?p.slice(0,p.lastIndexOf('/')):'';const baseOf=p=>p.slice(p.lastIndexOf('/')+1);const extOf=p=>{const b=baseOf(p),i=b.lastIndexOf('.');return i>0?b.slice(i+1).toLowerCase():'';};const stemOf=p=>{const b=baseOf(p),i=b.lastIndexOf('.');return i>0?b.slice(0,i):b;};const encPath=p=>p.split('/').map(encodeURIComponent).join('/');const urlOf=p=>ROOT_URL+encPath(p);const sortKo=(a,b)=>a.localeCompare(b,'ko',{numeric:true,sensitivity:'base'});function normalizePath(p){const out=[];for(const seg of p.split('/')){if(!seg||seg==='.')continue;if(seg==='..'){if(!out.length)return null;out.pop();}
+else out.push(seg);}
+return out.join('/');}
+function nameProblem(name){if(!name.trim())return'이름을 입력하세요';if(/[\\/:*?"<>|]/.test(name))return'\\ / : * ? " < > | 는 쓸 수 없습니다';if(/^\.+$/.test(name)||/[. ]$/.test(name))return'이름이 점이나 공백으로 끝날 수 없습니다';if(/_NIH_/i.test(name))return'"_NIH_" 가 들어간 이름은 색인에서 빠집니다';if(name.toLowerCase()==='pages.json')return'pages.json 은 색인 파일 이름입니다';return'';}
+const LS_PREFIX='vault:'+ROOT_URL+':';const LS={get(key,fallback=null){try{const v=localStorage.getItem(LS_PREFIX+key);return v===null?fallback:v;}catch(e){return fallback;}},set(key,value){try{localStorage.setItem(LS_PREFIX+key,String(value));}catch(e){}}};let toastTimer=0;function toast(msg,{error=false,action=null,onAction=null,ms=2400}={}){const box=$('toast'),act=$('toastAct');$('toastMsg').textContent=msg;box.classList.toggle('error',error);act.classList.toggle('hidden',!action);act.textContent=action||'';act.onclick=()=>{box.classList.add('hidden');if(onAction)onAction();};box.classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>box.classList.add('hidden'),ms);}
+let modalClose=null;function openModal({title,body='',value=null,okLabel='확인',danger=false,validate=null}){return new Promise(resolve=>{const input=$('modalInput'),err=$('modalErr'),ok=$('modalOk');$('modalTitle').textContent=title;$('modalBody').textContent=body;$('modalBody').classList.toggle('hidden',!body);input.classList.toggle('hidden',value===null);err.classList.toggle('hidden',value===null);input.value=value||'';err.textContent='';ok.textContent=okLabel;ok.classList.toggle('danger',danger);ok.classList.toggle('primary',!danger);$('modal').classList.remove('hidden');const done=result=>{$('modal').classList.add('hidden');modalClose=null;resolve(result);};modalClose=()=>done(value===null?false:null);$('modalForm').onsubmit=e=>{e.preventDefault();if(value===null)return done(true);const v=input.value.trim();const problem=validate?validate(v):'';if(problem){err.textContent=problem;return;}
+done(v);};$('modalCancel').onclick=()=>modalClose();$('modal').onmousedown=e=>{if(e.target===$('modal'))modalClose();};setTimeout(()=>{if(value===null)return ok.focus();input.focus();const dot=input.value.lastIndexOf('.');input.setSelectionRange(0,dot>0?dot:input.value.length);},30);});}
+const askName=opts=>openModal({value:'',...opts});const confirmBox=opts=>openModal({...opts,value:null});function copyText(text){const fallback=()=>{const ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;opacity:0;left:-9999px;top:-9999px';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}
+ta.remove();};if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(text).catch(fallback);fallback();return Promise.resolve();}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function inline(s){s=esc(s);s=s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,(_,t,l)=>`<a class="wikilink" data-wiki="${encodeURIComponent(t.trim()).replace(/[_*~`]/g,c=>'%'+c.charCodeAt(0).toString(16))}">${(l||t).trim()}</a>`);
+ s=s.replace(/!\[([^\]]*)\]\(([^ )]+)(?:\s+"([^"]*)")?\)/g,(_,a,u,t)=>`<img src="${u}"alt="${a}"${t?` title="${t}"`:''}>`);
+ s=s.replace(/\[([^\]]+)\]\(([^ )]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+ // 백틱 1~3개를 여닫는 쌍으로 모두 인라인 코드 처리 (예: `x`, ``x``, ```x```).
+ s=s.replace(/(`{1,3})([\s\S]*?)\1(?!`)/g,(_,fence,content)=>{
+  let c=content;
+  if(fence.length>1 && /^ /.test(c) && / $/.test(c) && c.trim()!=='') c=c.slice(1,-1);
+  return `<code>${c}</code>`;
+ });
+ // 볼드+기울임(***text***, ___text___)을 먼저 처리한다.
+ s=s.replace(/\*\*\*([\s\S]+?)\*\*\*/g,(_,t)=>`<strong><em>${t}</em></strong>`);
+ s=s.replace(/___([\s\S]+?)___/g,(_,t)=>`<strong><em>${t}</em></strong>`);
+ // 볼드(**text**, __text__) — 안쪽에 단일 */_ 가 남아있으면(예: **Text *Text* Text**)
+ // 그 부분만 기울임으로 재귀 처리해 굵게+기울임이 함께 적용되게 한다.
+ s=s.replace(/\*\*([\s\S]+?)\*\*/g,(_,inner)=>`<strong>${inner.replace(/\*([^*]+)\*/g,'<em>$1</em>')}</strong>`);
+ s=s.replace(/__([\s\S]+?)__/g,(_,inner)=>`<strong>${inner.replace(/_([^_]+)_/g,'<em>$1</em>')}</strong>`);
+ // 남은 단일 */_ 는 기울임으로 처리한다.
+ s=s.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>');
+ s=s.replace(/(?<!_)_([^_]+)_(?!_)/g,'<em>$1</em>');
+ s=s.replace(/~~([^~]+)~~/g,'<del>$1</del>');
+ return s;
+}
+// 줄이 ```로 시작하고,같은 줄 안에서 닫는``` 가 없을 때만 "코드 블록 시작"으로 인정한다.
+// (같은 줄 안에 닫는 ```가 있으면 그건 한 줄짜리 인라인 코드이지 블록 펜스가 아니다.)
+function isFenceOpen(l){if(!/^```/.test(l))return false;return!l.slice(3).includes('```');}
+function markdown(src){const lines=src.replace(/\r\n?/g,'\n').split('\n'),out=[];let i=0,inCode=false,codeLang='',code=[];function pushCodeBlock(){let lang=codeLang,content=code;if(content.length===0&&lang){content=[lang];lang='';}
+out.push(`<div class="codewrap"><button type="button" class="code-copy" title="코드 복사">⧉</button><pre><code class="language-${esc(lang)}">${esc(content.join('\n'))}</code></pre></div>`);inCode=false;codeLang='';code=[];}
+while(i<lines.length){let l=lines[i];if(!inCode&&isFenceOpen(l)){inCode=true;codeLang=l.replace(/^```/,'').trim();code=[];i++;continue;}
+if(inCode&&/^```\s*$/.test(l)){pushCodeBlock();i++;continue;}
+if(inCode&&/```\s*$/.test(l)){code.push(l.replace(/```\s*$/,''));pushCodeBlock();i++;continue;}
+if(inCode){code.push(l);i++;continue}
+if(/^ {0,3}#{1,6}\s+/.test(l)){const m=l.match(/^ {0,3}(#{1,6})\s+(.*)$/),n=m[1].length;out.push(`<h${n}>${inline(m[2].replace(/\s+#+\s*$/,''))}</h${n}>`);i++;continue;}
+if(/^---+$/.test(l.trim())){let end=-1;for(let j=i+1;j<lines.length;j++){if(lines[j].trim()===''){break}
+if(/^---+$/.test(lines[j].trim())){end=j;break}}
+if(end>i+1){const rows=lines.slice(i+1,end).map(x=>{const m=x.match(/^\s*([^:]+):\s*(.*)$/);return m?`<tr><th>${esc(m[1].trim())}</th><td>${esc(m[2].trim())}</td></tr>`:`<tr><td colspan="2">${esc(x)}</td></tr>`;}).join('');out.push(`<table class="frontmatter">${rows}</table>`);i=end+1;continue;}
+out.push('<hr>');i++;continue;}
+if(/^\*\*\*+$/.test(l.trim())){out.push('<hr>');i++;continue}
+if(/^>\s?/.test(l)){const q=[];while(i<lines.length&&/^>\s?/.test(lines[i])){q.push(lines[i].replace(/^>\s?/,''));i++}
+out.push(`<blockquote>${q.map(x=>`<p>${inline(x)}</p>`).join('')}</blockquote>`);continue;}
+if(/^\s*[-*+]\s+/.test(l)){const items=[];while(i<lines.length&&/^\s*[-*+]\s+/.test(lines[i])){let x=lines[i].replace(/^\s*[-*+]\s+/,'');const task=x.match(/^\[([ xX])\]\s+(.*)$/);items.push(task?`<li class="task"><input type="checkbox" ${task[1].toLowerCase()==='x'?'checked':''} disabled>${inline(task[2])}</li>`:`<li>${inline(x)}</li>`);i++;}
+out.push(`<ul>${items.join('')}</ul>`);continue;}
+if(/^\s*\d+\.\s+/.test(l)){const items=[];while(i<lines.length&&/^\s*\d+\.\s+/.test(lines[i])){items.push(`<li>${inline(lines[i].replace(/^\s*\d+\.\s+/,'') )}</li>`);i++}
+out.push(`<ol>${items.join('')}</ol>`);continue;}
+if(l.trim()===''){i++;continue}
+if(l.includes('|')&&i+1<lines.length&&/^\s*\|?[\s:-]+(\|[\s:-]+)+\|?\s*$/.test(lines[i+1])){const split=x=>x.trim().replace(/^\||\|$/g,'').split('|').map(v=>v.trim());const heads=split(l);i+=2;const rows=[];while(i<lines.length&&lines[i].includes('|')&&lines[i].trim()!==''){rows.push(split(lines[i]));i++}
+out.push(`<table><thead><tr>${heads.map(x=>`<th>${inline(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${heads.map((_,k)=>`<td>${inline(r[k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`);continue;}
+const para=[l];i++;while(i<lines.length&&lines[i].trim()!==''&&!/^(#{1,6})\s|^>|^\s*[-*+]\s|^\s*\d+\.\s/.test(lines[i])&&!/^---+$|^\*\*\*+$/.test(lines[i].trim())&&!isFenceOpen(lines[i])){para.push(lines[i]);i++}
+out.push(`<p>${para.map(inline).join('<br>')}</p>`);}
+if(inCode)pushCodeBlock();return out.join('');}
+const HandleStore=(()=>{const KEY=ROOT_URL;let dbPromise=null;function open(){if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{const req=indexedDB.open('vault-folder',1);req.onupgradeneeded=()=>req.result.createObjectStore('kv');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});return dbPromise;}
+async function run(mode,work){try{const db=await open();return await new Promise((resolve,reject)=>{const tx=db.transaction('kv',mode);const req=work(tx.objectStore('kv'));tx.oncomplete=()=>resolve(req.result);tx.onerror=tx.onabort=()=>reject(tx.error);});}catch(e){return undefined;}}
+return{get:()=>run('readonly',s=>s.get(KEY)),set:handle=>run('readwrite',s=>s.put(handle,KEY)),clear:()=>run('readwrite',s=>s.delete(KEY))};})();const local={files:new Map(),dirs:new Set(),persistent:true};const LocalDb=(()=>{let dbPromise=null;function open(){if(!dbPromise)dbPromise=new Promise((resolve,reject)=>{const req=indexedDB.open('vault:'+ROOT_URL,1);req.onupgradeneeded=()=>{req.result.createObjectStore('files',{keyPath:'path'});req.result.createObjectStore('dirs',{keyPath:'path'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});return dbPromise;}
+async function run(store,mode,work){if(!local.persistent)return undefined;try{const db=await open();return await new Promise((resolve,reject)=>{const tx=db.transaction(store,mode);const req=work(tx.objectStore(store));tx.oncomplete=()=>resolve(req?req.result:undefined);tx.onerror=tx.onabort=()=>reject(tx.error);});}catch(e){console.warn('[vault] 브라우저 보관함 저장 실패:',e);return undefined;}}
+return{open,run};})();async function loadLocal(){try{await LocalDb.open();}
+catch(e){local.persistent=false;return;}
+for(const f of(await LocalDb.run('files','readonly',s=>s.getAll()))||[])local.files.set(f.path,f);for(const d of(await LocalDb.run('dirs','readonly',s=>s.getAll()))||[])local.dirs.add(d.path);}
+function localPut(path,text){const rec={path,text,mtime:Date.now()};local.files.set(path,rec);return LocalDb.run('files','readwrite',s=>s.put(rec));}
+function localDelete(path){local.files.delete(path);return LocalDb.run('files','readwrite',s=>s.delete(path));}
+function localDirAdd(path){local.dirs.add(path);return LocalDb.run('dirs','readwrite',s=>s.put({path}));}
+function localDirDelete(path){local.dirs.delete(path);return LocalDb.run('dirs','readwrite',s=>s.delete(path));}
+const LOCAL=':local',FOLDER=':folder';const SOURCES={repo:{root:'',label:'저장소'},folder:{root:FOLDER,label:'폴더'},local:{root:LOCAL,label:'브라우저'}};const sourceOf=p=>(p===LOCAL||p.startsWith(LOCAL+'/'))?'local':(p===FOLDER||p.startsWith(FOLDER+'/'))?'folder':'repo';const rootOf=p=>SOURCES[sourceOf(p)].root;const relOf=p=>{const r=rootOf(p);return!r?p:p===r?'':p.slice(r.length+1);};const inRoot=(root,rel)=>!root?rel:rel?root+'/'+rel:root;const isLocal=p=>sourceOf(p)==='local';const isFolder=p=>sourceOf(p)==='folder';const canWrite=p=>sourceOf(p)!=='repo';const displayPath=p=>relOf(p);const vault={repoOk:false,root:null,saved:null,dirs:new Map(),pending:new Map()};const canPickFolder=typeof window.showDirectoryPicker==='function';const isConnected=()=>!!vault.root;const sourceReady=src=>src==='local'||(src==='folder'?isConnected():vault.repoOk);const sourceTitle=src=>src==='repo'?`저장소 · ${VAULT_NAME}`:src==='folder'?`폴더 · ${isConnected() ? vault.root.name : '연결 안 됨'}`:'브라우저 보관함';function isHidden(name,isRoot){if(/_NIH_/i.test(name)||name.toLowerCase()==='pages.json')return true;if(isRoot&&['.git','index.html','readme.md','.nojekyll'].includes(name.toLowerCase()))return true;return isRoot&&name===SELF_NAME;}
+const crawlJobs=new Map();function dropCache(src){for(const k of[...vault.dirs.keys()])if(sourceOf(k)===src)vault.dirs.delete(k);crawlJobs.delete(src);}
+function syncLocalDirs(){for(const k of[...vault.dirs.keys()])if(isLocal(k))vault.dirs.delete(k);const dirs=new Set(['']);const addParents=k=>{for(let d=dirOf(k);d;d=dirOf(d))dirs.add(d);};for(const d of local.dirs){dirs.add(d);addParents(d);}
+for(const k of local.files.keys())addParents(k);const entries=new Map([...dirs].map(d=>[d,{folders:[],files:new Map()}]));for(const d of dirs)if(d)entries.get(dirOf(d)).folders.push(baseOf(d));for(const[k,rec]of local.files)entries.get(dirOf(k)).files.set(baseOf(k),{size:rec.text.length});for(const[d,e]of entries)vault.dirs.set(inRoot(LOCAL,d),e);}
+function resetCache(){vault.dirs.clear();crawlJobs.clear();syncLocalDirs();}
+async function dirHandle(rel,create=false){let h=vault.root;for(const seg of rel.split('/').filter(Boolean))h=await h.getDirectoryHandle(seg,{create});return h;}
+async function fileHandle(rel,create=false){return(await dirHandle(dirOf(rel),create)).getFileHandle(baseOf(rel),{create});}
+async function useFolder(handle){vault.root=handle;vault.saved=null;dropCache('folder');await HandleStore.set(handle);await loadDir(FOLDER,true);}
+async function connectFolder(){let handle;try{handle=await window.showDirectoryPicker({id:'vault',mode:'readwrite'});}
+catch(e){return false;}
+await useFolder(handle);return true;}
+async function restoreFolder(){if(!canPickFolder)return false;const handle=await HandleStore.get();if(!handle||typeof handle.queryPermission!=='function')return false;try{if((await handle.queryPermission({mode:'readwrite'}))==='granted'){await useFolder(handle);return true;}}catch(e){return false;}
+vault.saved=handle;return false;}
+async function regrantFolder(){if(!vault.saved)return false;try{if((await vault.saved.requestPermission({mode:'readwrite'}))!=='granted')return false;}catch(e){return false;}
+await useFolder(vault.saved);return true;}
+async function disconnectFolder(){await HandleStore.clear();vault.root=vault.saved=null;dropCache('folder');}
+function fetchTimeout(url,ms=8000){const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),ms);return fetch(url,{cache:'no-store',signal:ctl.signal}).finally(()=>clearTimeout(timer));}
+async function readDirFromFolder(rel){const folders=[],files=new Map();for await(const[name,h]of(await dirHandle(rel)).entries()){if(isHidden(name,rel===''))continue;if(h.kind==='directory')folders.push(name);else files.set(name,{size:0});}
+return{folders,files};}
+async function readDirFromIndex(rel){const res=await fetchTimeout(ROOT_URL+(rel?encPath(rel)+'/':'')+'pages.json');if(!res.ok)throw new Error('HTTP '+res.status);const data=await res.json();const files=new Map();for(const f of data.files||[]){const name=typeof f==='string'?f:f&&f.name;if(name&&!isHidden(name,rel===''))files.set(name,{size:typeof f==='string'?0:f.size||0});}
+return{folders:(data.folders||[]).filter(n=>typeof n==='string'&&!isHidden(n,rel==='')),files};}
+function loadDir(dir,force=false){const src=sourceOf(dir);if(src==='local'){syncLocalDirs();return Promise.resolve(vault.dirs.has(dir));}
+if(src==='folder'&&!isConnected())return Promise.resolve(false);if(!force&&vault.dirs.has(dir))return Promise.resolve(true);if(vault.pending.has(dir))return vault.pending.get(dir);const job=(async()=>{try{vault.dirs.set(dir,src==='folder'?await readDirFromFolder(relOf(dir)):await readDirFromIndex(dir));if(dir==='')vault.repoOk=true;return true;}catch(e){vault.dirs.delete(dir);if(dir==='')vault.repoOk=false;return false;}finally{vault.pending.delete(dir);}})();vault.pending.set(dir,job);return job;}
+function hasFile(path){const d=vault.dirs.get(dirOf(path));return path!==LOCAL&&path!==FOLDER&&!!d&&d.files.has(baseOf(path));}
+function dirExists(path){if(path===''||path===LOCAL||path===FOLDER)return sourceReady(sourceOf(path));const d=vault.dirs.get(dirOf(path));return!!d&&d.folders.includes(baseOf(path));}
+function listDir(dir){const d=vault.dirs.get(dir);if(!d)return{folders:[],files:[]};return{folders:d.folders.map(name=>({name,path:pathJoin(dir,name)})).sort((a,b)=>sortKo(a.name,b.name)),files:[...d.files.keys()].map(name=>({name,path:pathJoin(dir,name)})).sort((a,b)=>sortKo(a.name,b.name))};}
+function uniqueName(dir,wanted){const{folders,files}=listDir(dir);const taken=new Set([...folders,...files].map(x=>x.name.toLowerCase()));if(!taken.has(wanted.toLowerCase()))return wanted;const dot=wanted.lastIndexOf('.');const stem=dot>0?wanted.slice(0,dot):wanted,ext=dot>0?wanted.slice(dot):'';for(let n=2;;n++){const name=`${stem} ${n}${ext}`;if(!taken.has(name.toLowerCase()))return name;}}
+function knownFiles(src){const out=[];for(const[dir,d]of vault.dirs)if(sourceOf(dir)===src)for(const name of d.files.keys())out.push(pathJoin(dir,name));return out;}
+function crawlAll(src,onProgress){if(crawlJobs.has(src))return crawlJobs.get(src);const job=(async()=>{if(src==='local'||!sourceReady(src))return;const queue=[SOURCES[src].root];let seen=0,active=0;await new Promise(resolve=>{const pump=()=>{while(active<4&&queue.length&&seen<400){const dir=queue.shift();seen++;active++;loadDir(dir).then(ok=>{if(ok)for(const name of vault.dirs.get(dir).folders)queue.push(pathJoin(dir,name));}).finally(()=>{active--;if(onProgress)onProgress();pump();});}
+if(!active)resolve();};pump();});})();crawlJobs.set(src,job);return job;}
+async function readFile(path){const src=sourceOf(path);if(src==='local'){const rec=local.files.get(relOf(path));if(!rec)throw new Error('없는 노트');return new Blob([rec.text],{type:'text/plain;charset=utf-8'});}
+if(src==='folder'){if(!isConnected())throw new Error('폴더가 연결되어 있지 않습니다');return(await fileHandle(relOf(path))).getFile();}
+const res=await fetchTimeout(urlOf(path),15000);if(!res.ok)throw new Error('HTTP '+res.status);return res.blob();}
+const readText=async path=>(await readFile(path)).text();async function viewUrl(path){return sourceOf(path)==='repo'?urlOf(path):URL.createObjectURL(await readFile(path));}
+const readOnlyError=()=>new Error('저장소는 읽기 전용입니다');async function writeFile(path,data){const src=sourceOf(path);if(src==='repo')throw readOnlyError();if(src==='local'){await localPut(relOf(path),typeof data==='string'?data:await data.text());return syncLocalDirs();}
+const w=await(await fileHandle(relOf(path),true)).createWritable();await w.write(data);await w.close();}
+async function makeDir(path){const src=sourceOf(path);if(src==='repo')throw readOnlyError();if(src==='local'){if(relOf(path))await localDirAdd(relOf(path));return syncLocalDirs();}
+await dirHandle(relOf(path),true);}
+async function removePath(path){const src=sourceOf(path),k=relOf(path);if(src==='repo')throw readOnlyError();if(src==='local'){const under=x=>!k||x===k||x.startsWith(k+'/');for(const f of[...local.files.keys()])if(under(f))await localDelete(f);for(const d of[...local.dirs])if(under(d))await localDirDelete(d);return syncLocalDirs();}
+await(await dirHandle(dirOf(k))).removeEntry(baseOf(k),{recursive:true});}
+async function moveFile(from,to){await writeFile(to,await readFile(from));await removePath(from);}
+async function copyDir(from,to){await makeDir(to);await loadDir(from,true);const{folders,files}=listDir(from);for(const f of files)await writeFile(pathJoin(to,f.name),await readFile(f.path));for(const d of folders)await copyDir(d.path,pathJoin(to,d.name));}
+async function moveDir(from,to){await copyDir(from,to);await removePath(from);}
+function githubRepoUrl(){const m=location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i);if(!m)return'';const repo=new URL(ROOT_URL).pathname.split('/').filter(Boolean)[0];return repo?`https://github.com/${m[1]}/${repo}`:'';}
+const treeEl=$('tree');const expanded=new Set(JSON.parse(LS.get('expanded','[]')));let filterText='';let source='repo';let targetDir='';function setSource(src){source=src;LS.set('source',src);if(sourceOf(targetDir)!==src)targetDir=SOURCES[src].root;$('filterInput').value='';filterText='';renderTree();refreshChrome();}
+const saveExpanded=()=>LS.set('expanded',JSON.stringify([...expanded]));const icon=(id,cls='ic')=>`<svg class="${cls}"><use href="#${id}"/></svg>`;function rowHtml({type,path,name,depth,sub=''}){const open=type==='dir'&&expanded.has(path);const dot=name.lastIndexOf('.');const ext=type==='file'&&dot>0?name.slice(dot+1):'';const shown=type==='file'&&/^(md|markdown)$/i.test(ext)?name.slice(0,dot):name;const active=currentPath()===path?' active'+(isDirty()?' unsaved':''):'';return`<div class="row ${type}${open ? ' open' : ''}${active}" role="treeitem" data-type="${type}" data-path="${esc(path)}" style="--d:${depth}" title="${esc(displayPath(path))}">`
++(type==='dir'?icon('i-chev','ic chev'):icon('i-note'))
++`<span class="name">${esc(shown)}</span>`
++(sub?`<span class="sub">${esc(sub)}</span>`:'')
++(ext&&shown===name?`<span class="ext">${esc(ext)}</span>`:'')
++`<span class="mark"></span><button class="more" tabindex="-1" aria-label="메뉴">${icon('i-more')}</button></div>`;}
+function dirHtml(dir,depth){const{folders,files}=listDir(dir);let html='';for(const f of folders){html+=rowHtml({type:'dir',path:f.path,name:f.name,depth});if(expanded.has(f.path))html+=dirHtml(f.path,depth+1);}
+for(const f of files)html+=rowHtml({type:'file',path:f.path,name:f.name,depth});return html;}
+function sectionHtml(root,label,hint){return`<div class="section${targetDir === root ? ' target' : ''}" data-type="section" data-path="${esc(root)}" title="${esc(hint)}">`
++`<span class="name">${esc(label)}</span><button class="more" tabindex="-1" aria-label="메뉴">${icon('i-more')}</button></div>`;}
+const SOURCE_HINT={repo:'저장소에 올라가 있는 노트. 읽기 전용입니다',folder:'직접 고른 폴더의 진짜 파일. 쓰는 대로 그 폴더에 저장됩니다',local:'이 브라우저에만 저장되는 노트. ZIP 으로 내보낼 수 있습니다'};function renderTree(){const root=SOURCES[source].root;let html;if(filterText){const q=filterText.toLowerCase();const paths=knownFiles(source).filter(p=>relOf(p).toLowerCase().includes(q)).sort((a,b)=>(baseOf(b).toLowerCase().includes(q)-baseOf(a).toLowerCase().includes(q))||sortKo(a,b));html=paths.slice(0,300).map(p=>rowHtml({type:'file',path:p,name:baseOf(p),depth:0,sub:displayPath(dirOf(p))})).join('')||'<div class="tree-note">맞는 노트가 없습니다.</div>';}else{html=sectionHtml(root,sourceTitle(source),SOURCE_HINT[source]);if(!sourceReady(source)){html+='<div class="tree-note">'+(source==='repo'?'저장소 색인(pages.json)을 찾지 못했습니다. 위에서 <b>폴더</b>나 <b>브라우저</b>로 바꿔 쓰세요.':!canPickFolder?'이 브라우저는 폴더를 직접 고르는 기능이 없습니다(Chrome · Edge PC 에서 됩니다). <b>브라우저</b> 방식을 쓰세요.':(vault.saved?`지난번에 쓰던 "${esc(vault.saved.name)}" 폴더를 다시 쓰려면 한 번 눌러 허용하세요.`:'노트를 저장할 폴더를 고르세요. GitTool 이 클론한 폴더(github\\아이디\\레포)를 고르면, 쓰는 대로 그 안에 .md 파일로 저장됩니다.')
++`<br><button class="btn primary" data-act="connect">${vault.saved ? '다시 연결' : '폴더 고르기'}</button>`)+'</div>';}else{html+=dirHtml(root,0)||'<div class="tree-note">'+(source==='repo'?'저장소에 노트가 없습니다.':'아직 노트가 없습니다. 위의 새 노트 버튼으로 시작하세요.')+'</div>';}}
+treeEl.innerHTML=html;}
+async function toggleDir(path,open=!expanded.has(path)){if(open){expanded.add(path);if(!vault.dirs.has(path)&&!(await loadDir(path)))toast(`"${baseOf(path)}" 폴더를 읽지 못했습니다`,{error:true});}else{expanded.delete(path);}
+saveExpanded();renderTree();}
+async function revealPath(path){const chain=[];for(let d=dirOf(path);d&&d!==rootOf(path);d=dirOf(d))chain.unshift(d);for(const d of chain){if(!vault.dirs.has(d))await loadDir(d);expanded.add(d);}
+saveExpanded();}
+function scrollActiveIntoView(){const row=treeEl.querySelector('.row.active');if(row)row.scrollIntoView({block:'nearest'});}
+function writableTarget(dir){if(canWrite(dir)&&sourceReady(sourceOf(dir)))return dir;toast(sourceOf(dir)==='repo'?'저장소는 읽기 전용이라 브라우저 방식에 만듭니다':'폴더가 연결되지 않아 브라우저 방식에 만듭니다',{ms:3200});setSource('local');return LOCAL;}
+const fsError=(what,e)=>toast(`${what} 실패: ${e && e.message || e}`,{error:true,ms:4500});async function createNote(dir=targetDir,name='제목 없음.md',text=''){if(!(await leaveOk()))return null;dir=writableTarget(dir);try{if(!vault.dirs.has(dir))await loadDir(dir);const path=pathJoin(dir,uniqueName(dir,name));await writeFile(path,text);for(let d=dir;;d=dirOf(d)){await loadDir(d,true);if(d===rootOf(dir))break;}
+if(dir!==rootOf(dir))expanded.add(dir);saveExpanded();await openNote(path);return path;}catch(e){fsError('새 노트 만들기',e);return null;}}
+async function createFolder(dir=targetDir){dir=writableTarget(dir);if(!vault.dirs.has(dir))await loadDir(dir);const name=await askName({title:`"${displayPath(dir) || sourceTitle(sourceOf(dir))}" 안에 새 폴더`,value:uniqueName(dir,'새 폴더'),okLabel:'만들기',validate:v=>nameProblem(v)||(uniqueName(dir,v)!==v?'같은 이름이 이미 있습니다':'')});if(!name)return;const path=pathJoin(dir,name);try{await makeDir(path);await loadDir(dir,true);await loadDir(path,true);}catch(e){return fsError('새 폴더 만들기',e);}
+if(dir!==rootOf(dir))expanded.add(dir);expanded.add(path);saveExpanded();targetDir=path;renderTree();}
+function remapPaths(from,to){const move=p=>to+p.slice(from.length);const under=p=>p===from||p.startsWith(from+'/');for(const p of[...expanded])if(under(p)){expanded.delete(p);expanded.add(move(p));}
+for(const p of[...vault.dirs.keys()])if(under(p))vault.dirs.delete(p);saveExpanded();if(under(targetDir))targetDir=move(targetDir);const cur=currentPath();if(cur&&cur.startsWith(from+'/'))retargetCurrent(move(cur));}
+async function renameFile(path,newName){if(newName===baseOf(path))return path;const dir=dirOf(path),next=pathJoin(dir,newName);try{await flushSave();await moveFile(path,next);await loadDir(dir,true);}catch(e){fsError('이름 바꾸기',e);return path;}
+if(currentPath()===path)retargetCurrent(next);renderTree();return next;}
+const renameCheck=(path,v)=>nameProblem(v)||(v.toLowerCase()!==baseOf(path).toLowerCase()&&uniqueName(dirOf(path),v)!==v?'같은 이름이 이미 있습니다':'');async function renameFileDialog(path){const name=await askName({title:'이름 바꾸기',value:baseOf(path),okLabel:'바꾸기',validate:v=>renameCheck(path,v)});if(name)await renameFile(path,name);}
+async function renameDirDialog(path){const name=await askName({title:'폴더 이름 바꾸기',value:baseOf(path),okLabel:'바꾸기',validate:v=>renameCheck(path,v)});if(!name||name===baseOf(path))return;const parent=dirOf(path),next=pathJoin(parent,name);try{await flushSave();await moveDir(path,next);remapPaths(path,next);await loadDir(parent,true);for(const d of[...expanded].sort((a,b)=>a.length-b.length))if(d===next||d.startsWith(next+'/'))await loadDir(d);}catch(e){fsError('폴더 이름 바꾸기',e);}
+renderTree();}
+async function deletePath(path,isDir){if(!(await confirmBox({title:isDir?'폴더 삭제':'노트 삭제',okLabel:'삭제',danger:true,body:isLocal(path)?`"${displayPath(path)}" ${isDir ? '폴더와 그 안의 노트를' : '노트를'} 이 브라우저에서 지웁니다.\n내보내거나 옮겨 두지 않았다면 되살릴 수 없습니다.`:isDir?`"${displayPath(path)}" 폴더와 그 안의 모든 파일을 연결한 폴더에서 지웁니다.\n휴지통으로 가지 않습니다.`:`"${displayPath(path)}" 파일을 연결한 폴더에서 지웁니다.\n휴지통으로 가지 않습니다. (이미 커밋한 것은 git 기록에서 되살릴 수 있습니다)`})))return;const cur=currentPath();if(cur&&(cur===path||cur.startsWith(path+'/'))){cancelPendingSave();closeNote();}
+try{await removePath(path);await loadDir(dirOf(path),true);}catch(e){return fsError('삭제',e);}
+for(const p of[...expanded])if(p===path||p.startsWith(path+'/'))expanded.delete(p);for(const p of[...vault.dirs.keys()])if(p===path||p.startsWith(path+'/'))vault.dirs.delete(p);saveExpanded();if(targetDir===path||targetDir.startsWith(path+'/'))targetDir=dirOf(path)||rootOf(path);renderTree();toast(`"${baseOf(path)}" 을(를) 지웠습니다`);}
+function showMenu(x,y,items){const menu=$('ctxMenu');menu.innerHTML='';if(!items.some(it=>it&&it!=='-'))return hideMenu();for(const it of items){if(!it)continue;if(it==='-'){menu.appendChild(document.createElement('hr'));continue;}
+const b=document.createElement('button');b.type='button';b.textContent=it.label;if(it.danger)b.className='danger';b.onclick=()=>{hideMenu();it.run();};menu.appendChild(b);}
+menu.classList.remove('hidden');menu.style.left=Math.max(6,Math.min(x,innerWidth-menu.offsetWidth-6))+'px';menu.style.top=Math.max(6,Math.min(y,innerHeight-menu.offsetHeight-6))+'px';}
+const hideMenu=()=>$('ctxMenu').classList.add('hidden');function openRowMenu(row,x,y){const path=row.dataset.path,type=row.dataset.type,src=sourceOf(path);const fs=canWrite(path)&&sourceReady(src),toFolder=src==='local'&&isConnected();if(type==='section'){showMenu(x,y,[fs&&{label:'새 노트',run:()=>createNote(path).then(p=>p&&focusTitle())},fs&&{label:'새 폴더',run:()=>createFolder(path)},{label:'목록 다시 읽기',run:refreshVault},src==='local'&&'-',src==='local'&&{label:'전체를 ZIP 으로 내보내기',run:exportLocalZip},toFolder&&{label:'전체를 연결한 폴더로 옮기기',run:moveAllLocalToFolder},src==='folder'&&canPickFolder&&'-',src==='folder'&&canPickFolder&&{label:isConnected()?'다른 폴더 고르기':'폴더 고르기',run:()=>connectFlow(true)},src==='folder'&&isConnected()&&{label:'연결 끊기',run:disconnectFlow}]);}else if(type==='dir'){showMenu(x,y,[fs&&{label:'여기에 새 노트',run:()=>createNote(path).then(p=>p&&focusTitle())},fs&&{label:'여기에 새 폴더',run:()=>createFolder(path)},fs&&'-',toFolder&&{label:'연결한 폴더로 옮기기',run:()=>moveLocalToFolder(path,true)},fs&&{label:'이름 바꾸기',run:()=>renameDirDialog(path)},fs&&{label:'삭제',danger:true,run:()=>deletePath(path,true)}]);}else{showMenu(x,y,[{label:'열기',run:()=>openNote(path)},src==='repo'&&{label:'링크 복사',run:()=>copyNoteLink(path)},{label:'파일로 내려받기',run:()=>downloadNote(path)},src!=='local'&&kindOf(path)!=='view'&&{label:'브라우저 방식으로 복사',run:()=>copyToLocal(path)},toFolder&&{label:'연결한 폴더로 옮기기',run:()=>moveLocalToFolder(path,false)},fs&&'-',fs&&{label:'이름 바꾸기',run:()=>renameFileDialog(path)},fs&&{label:'삭제',danger:true,run:()=>deletePath(path,false)}]);}}
+treeEl.addEventListener('click',e=>{if(e.target.closest('[data-act="connect"]'))return connectFlow();const row=e.target.closest('.row, .section');if(!row)return;if(e.target.closest('.more')){e.stopPropagation();const r=e.target.closest('.more').getBoundingClientRect();return openRowMenu(row,r.left,r.bottom+4);}
+const path=row.dataset.path;if(row.dataset.type==='section'){targetDir=path;renderTree();}
+else if(row.dataset.type==='dir'){targetDir=path;toggleDir(path);}
+else{targetDir=dirOf(path);openNote(path);closeSidebarIfOverlay();}});treeEl.addEventListener('contextmenu',e=>{const row=e.target.closest('.row, .section');e.preventDefault();if(row)openRowMenu(row,e.clientX,e.clientY);else if(canWrite(SOURCES[source].root)&&sourceReady(source))showMenu(e.clientX,e.clientY,[{label:'새 노트',run:()=>createNote(SOURCES[source].root).then(p=>p&&focusTitle())},{label:'새 폴더',run:()=>createFolder(SOURCES[source].root)}]);});$('filterInput').addEventListener('input',e=>{filterText=e.target.value.trim();renderTree();if(filterText)crawlAll(source,()=>{if(filterText)renderTree();});});$('filterInput').addEventListener('keydown',e=>{if(e.key==='Enter'){const first=treeEl.querySelector('.row.file');if(first){openNote(first.dataset.path);closeSidebarIfOverlay();}}else if(e.key==='Escape'){e.target.value='';filterText='';renderTree();e.target.blur();}});
+const editor=$('editor');const preview=$('preview');let htmlFrame=$('htmlFrame');const workspace=$('workspace');let current=null;let openSeq=0;let saveTimer=0;let saveChain=Promise.resolve();const currentPath=()=>current?current.path:null;const isDirty=()=>!!current&&current.kind!=='view'&&editor.value!==current.saved;const kindOf=path=>{const ext=extOf(path);return IMG_EXT.has(ext)?'view':(ext==='md'||ext==='markdown')?'md':(ext==='html'||ext==='htm')?'html':(TEXT_EXT.has(ext)||ext==='')?'text':'view';};async function leaveOk(){if(!current)return true;if(canWrite(current.path)){await flushSave();return true;}
+if(!isDirty())return true;return confirmBox({title:'저장하지 않은 내용',okLabel:'버리고 이동',danger:true,body:`"${baseOf(current.path)}" 의 고친 내용을 아직 파일로 저장하지 않았습니다.\n이대로 이동하면 사라집니다. (취소한 뒤 Ctrl+S 로 저장)`});}
+function showNote(path,kind,text){current={path,kind,saved:text};editor.value=text;workspace.dataset.kind=kind;$('viewSeg').classList.toggle('disabled',kind==='text'||kind==='view');document.title=stemOf(path)+' — '+VAULT_NAME;targetDir=dirOf(path);LS.set('last',path);setHash(path);render();renderTree();refreshHeader();scrollActiveIntoView();if(kind!=='view'){editor.scrollTop=0;editor.setSelectionRange(0,0);preview.parentElement.scrollTop=0;}}
+async function openNote(path,{force=false}={}){if(!force&&current&&current.path===path){highlightCurrent();return;}
+if(!force&&!(await leaveOk())){if(current)setHash(current.path);return;}
+if(!sourceReady(sourceOf(path))){setSource(sourceOf(path));return toast(sourceOf(path)==='folder'?'폴더 방식의 노트입니다. 먼저 폴더를 연결하세요':'저장소 색인을 읽지 못해 열 수 없습니다',{error:true,ms:3500});}
+if(sourceOf(path)!==source)setSource(sourceOf(path));const seq=++openSeq;await revealPath(path);if(seq!==openSeq)return;let kind=kindOf(path),text='';if(kind!=='view'){try{const listed=vault.dirs.get(dirOf(path));const file=await readFile(path);const size=file.size||(listed&&listed.files.get(baseOf(path))||{}).size||0;if(size>MAX_TEXT_BYTES)kind='view';else text=await file.text();}catch(e){if(seq!==openSeq)return;renderTree();return toast(`"${displayPath(path)}" 을(를) 열지 못했습니다 (없는 노트이거나 읽기 문제)`,{error:true,ms:4000});}
+if(seq!==openSeq)return;}
+showNote(path,kind,text);}
+function closeNote(){openSeq++;current=null;editor.value='';workspace.dataset.kind='none';document.title=VAULT_NAME;LS.set('last','');setHash('');refreshHeader();renderTree();}
+function retargetCurrent(next){current.path=next;LS.set('last',next);setHash(next);document.title=stemOf(next)+' — '+VAULT_NAME;refreshHeader();}
+function highlightCurrent(){treeEl.querySelectorAll('.row.active').forEach(r=>r.classList.remove('active','unsaved'));const row=current&&treeEl.querySelector(`.row[data-path="${CSS.escape(current.path)}"]`);if(row){row.classList.add('active');row.classList.toggle('unsaved',isDirty());}}
+function setHash(path){const want=path?'#/'+encPath(path):'';if(location.hash!==want)history.pushState(null,'',location.pathname+location.search+want);}
+function pathFromHash(){const h=location.hash.replace(/^#\/?/,'');if(!h)return'';try{return normalizePath(h.split('/').map(decodeURIComponent).join('/'))||'';}catch(e){return'';}}
+window.addEventListener('popstate',async()=>{const p=pathFromHash();if(p)openNote(p);else if(current){if(await leaveOk())closeNote();else setHash(current.path);}});function copyNoteLink(path){copyText(location.href.split('#')[0]+'#/'+encPath(path));toast('노트 링크를 복사했습니다');}
+function refreshHeader(){const title=$('titleInput'),tag=$('stateTag');const has=!!current;title.disabled=!has;$('saveBtn').disabled=!has;$('linkBtn').disabled=!has||sourceOf(current.path)!=='repo';if(!has){title.value='';$('crumbs').textContent='';tag.classList.add('hidden');$('saveInfo').textContent='';updateStatus();return;}
+const dir=displayPath(dirOf(current.path)),canRename=canWrite(current.path);$('crumbs').textContent=[SOURCES[sourceOf(current.path)].label,...dir.split('/').filter(Boolean)].join(' / ')+' /';if(document.activeElement!==title)title.value=baseOf(current.path);title.readOnly=!canRename;title.title=canRename?'이름을 고치고 Enter':'이름을 바꾸려면 폴더를 연결하세요';refreshSaveState();updateStatus();}
+function refreshSaveState(note=''){if(!current)return;const tag=$('stateTag'),dirty=isDirty();if(canWrite(current.path)){tag.classList.add('hidden');$('saveInfo').textContent=note||(current.kind==='view'?'':savedText());}else{tag.className='tag unsaved'+(dirty?'':' hidden');tag.textContent='저장 안 됨';$('saveInfo').textContent=note||(current.kind==='view'?'':dirty?'읽기 전용 노트를 고쳤습니다 · Ctrl+S 로 .md 파일로 저장하거나, 트리 메뉴에서 "브라우저 방식으로 복사"':'저장소에서 읽음(읽기 전용) · 쓰려면 위에서 폴더나 브라우저 방식으로');const row=treeEl.querySelector('.row.active');if(row)row.classList.toggle('unsaved',dirty);}}
+const savedText=()=>isLocal(current.path)?'이 브라우저에 저장됨 · ZIP 으로 내보내거나 폴더로 옮길 수 있습니다':'폴더에 저장됨 · 올릴 때는 GitTool 2번(커밋)';$('titleInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur();if(current&&current.kind!=='view')editor.focus();}
+if(e.key==='Escape'){e.target.value=current?baseOf(current.path):'';e.target.blur();}});$('titleInput').addEventListener('change',async e=>{if(!current||e.target.readOnly)return;const old=baseOf(current.path);let name=e.target.value.trim();if(name&&!/\.[a-z0-9]+$/i.test(name))name+='.md';if(name===old){e.target.value=old;return;}
+const problem=renameCheck(current.path,name);if(problem){toast(problem,{error:true});e.target.value=old;return;}
+const next=await renameFile(current.path,name);if(current&&current.path===next&&kindOf(next)!==current.kind)await openNote(next,{force:true});if(current)e.target.value=baseOf(current.path);});function setFrameDoc(html){if(html===null&&!htmlFrame.hasAttribute('srcdoc')){htmlFrame.classList.add('hidden');return;}
+const next=document.createElement('iframe');next.id='htmlFrame';next.setAttribute('sandbox','');next.setAttribute('referrerpolicy','no-referrer');next.title=htmlFrame.title;if(html===null)next.className='hidden';else next.srcdoc=html;htmlFrame.replaceWith(next);htmlFrame=next;}
+let liveUrls=[];let renderSeq=0;async function setViewSrc(el,attr,path,seq){try{const url=await viewUrl(path);if(url.startsWith('blob:'))liveUrls.push(url);if(seq===renderSeq)el.setAttribute(attr,url);}catch(e){}}
+function render(){if(!current)return;const seq=++renderSeq;for(const u of liveUrls)URL.revokeObjectURL(u);liveUrls=[];const{path,kind}=current,dir=dirOf(path);if(kind==='html'){preview.classList.add('hidden');const base=canWrite(path)?'':`<base href="${esc(ROOT_URL + (dir ? encPath(dir) + '/' : ''))}">`;const m=editor.value.match(/^\s*<!doctype[^>]*>/i);setFrameDoc(m?m[0]+base+editor.value.slice(m[0].length):base+editor.value);}else{setFrameDoc(null);preview.classList.remove('hidden');if(kind==='md'){const tpl=document.createElement('template');tpl.innerHTML=markdown(editor.value);for(const img of tpl.content.querySelectorAll('img')){const rel=resolveRelative(dir,img.getAttribute('src'));if(rel===null)continue;img.removeAttribute('src');setViewSrc(img,'src',rel,seq);}
+let anyMissing=false;for(const a of tpl.content.querySelectorAll('a.wikilink')){if(!findWikiTarget(decodeWiki(a.dataset.wiki),dir)){a.classList.add('missing');anyMissing=true;}}
+preview.replaceChildren(tpl.content);const src=sourceOf(path);if(anyMissing&&sourceReady(src)&&!crawlJobs.has(src))crawlAll(src).then(()=>{if(current&&current.path===path)render();});}else if(kind==='view'){const isImg=IMG_EXT.has(extOf(path));preview.innerHTML='<div class="fileview">'
++(isImg?`<img alt="${esc(baseOf(path))}">`:'<p>이 형식은 편집기에서 열 수 없습니다.</p>')
++'<p><a class="linkbtn" target="_blank" rel="noopener">새 탭에서 열기</a></p></div>';if(isImg)setViewSrc(preview.querySelector('img'),'src',path,seq);setViewSrc(preview.querySelector('a'),'href',path,seq);}else{preview.innerHTML='';}}
+updateStatus();}
+function updateStatus(){const editable=current&&current.kind!=='view';if(!editable){$('chars').textContent=$('words').textContent=$('pos').textContent='';return;}
+const v=editor.value,p=editor.selectionStart,before=v.slice(0,p);$('chars').textContent=`${v.length}자`;$('words').textContent=`${(v.trim().match(/\S+/g) || []).length}단어`;$('pos').textContent=`Ln ${before.split('\n').length}, Col ${p - before.lastIndexOf('\n')}`;}
+function doSave(){clearTimeout(saveTimer);saveTimer=0;if(!current||current.kind==='view'||!canWrite(current.path))return saveChain;const note=current,text=editor.value;if(text===note.saved)return saveChain;saveChain=saveChain.then(async()=>{try{await writeFile(note.path,text);note.saved=text;if(current===note)refreshSaveState(editor.value===text?'':'저장 중…');}catch(e){toast(`저장 실패: ${e && e.message || e}`,{error:true,ms:5000});}});return saveChain;}
+const flushSave=()=>saveTimer?doSave():saveChain;const cancelPendingSave=()=>{clearTimeout(saveTimer);saveTimer=0;};async function saveNote(){if(!current||current.kind==='view')return;if(canWrite(current.path)){await doSave();return toast(isLocal(current.path)?'이 브라우저에 저장했습니다':'폴더에 저장했습니다');}
+const note=current,name=baseOf(note.path),text=editor.value;if(typeof window.showSaveFilePicker==='function'){try{const h=await window.showSaveFilePicker({suggestedName:name});const w=await h.createWritable();await w.write(text);await w.close();}catch(e){if(e&&e.name==='AbortError')return;downloadBlob(new Blob([text],{type:'text/plain;charset=utf-8'}),name);}}else{downloadBlob(new Blob([text],{type:'text/plain;charset=utf-8'}),name);}
+note.saved=text;if(current===note)refreshHeader();toast('파일로 저장했습니다. 클론한 폴더에 넣고 GitTool 로 커밋하세요.',{ms:4500});}
+editor.addEventListener('input',()=>{render();if(canWrite(current.path)){clearTimeout(saveTimer);saveTimer=setTimeout(doSave,500);refreshSaveState('저장 중…');}else{refreshSaveState();}});window.addEventListener('beforeunload',e=>{if(current&&(canWrite(current.path)?saveTimer:isDirty())){if(saveTimer)doSave();e.preventDefault();e.returnValue='';}});function setView(view){workspace.dataset.view=view;$('viewSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));LS.set('view',view);}
+let lastEditView='split';function toggleReadView(){const v=workspace.dataset.view;if(v==='read')setView(lastEditView);else{lastEditView=v;setView('read');}}
+function resolveRelative(dir,href){if(!href||/^([a-z][a-z0-9+.-]*:|\/\/|#|\/)/i.test(href))return null;let p=href.split('#')[0].split('?')[0];try{p=decodeURIComponent(p);}catch(e){}
+const rel=normalizePath(pathJoin(relOf(dir),p));return rel===null?null:inRoot(rootOf(dir),rel);}
+const decodeWiki=s=>{try{return decodeURIComponent(s);}catch(e){return s;}};function findWikiTarget(target,fromDir){const t=normalizePath(target.replace(/\\/g,'/'))||'';if(!t)return null;const hasExt=/\.[a-z0-9]+$/i.test(baseOf(t));const wants=(hasExt?[t]:[t+'.md',t]).map(s=>s.toLowerCase());const files=knownFiles(sourceOf(fromDir)),from=relOf(fromDir);const lower=new Map(files.map(p=>[relOf(p).toLowerCase(),p]));for(const w of wants){const hit=lower.get(pathJoin(from,w).toLowerCase())||lower.get(w);if(hit)return hit;}
+if(!t.includes('/'))for(const p of files)if(wants.includes(baseOf(p).toLowerCase()))return p;return null;}
+async function followWiki(target){const dir=current?dirOf(current.path)||rootOf(current.path):SOURCES[source].root,src=sourceOf(dir);let hit=findWikiTarget(target,dir);if(!hit&&sourceReady(src)){await crawlAll(src);hit=findWikiTarget(target,dir);}
+if(hit)return openNote(hit);const t=normalizePath(target.replace(/\\/g,'/'))||'';const name=baseOf(t),sub=dirOf(t);if(!name||nameProblem(name)||sub.split('/').some(s=>s&&nameProblem(s)))return toast('그 이름으로는 노트를 만들 수 없습니다',{error:true});const made=await createNote(sub?pathJoin(dir,sub):dir,/\.[a-z0-9]+$/i.test(name)?name:name+'.md',`# ${stemOf(name)}\n\n`);if(made)toast(`"${name}" 노트를 새로 만들었습니다`);}
+preview.addEventListener('click',async e=>{const btn=e.target.closest('.code-copy');if(btn){const code=btn.parentElement.querySelector('pre code');if(code)copyText(code.textContent).then(()=>{btn.classList.add('copied');btn.textContent='✓';setTimeout(()=>{btn.classList.remove('copied');btn.textContent='⧉';},900);});return;}
+const a=e.target.closest('a');if(!a||!current)return;if(a.classList.contains('wikilink')){e.preventDefault();followWiki(decodeWiki(a.dataset.wiki));return;}
+const rel=resolveRelative(dirOf(current.path),a.getAttribute('href'));if(rel===null)return;e.preventDefault();const ext=extOf(rel);if(TEXT_EXT.has(ext)||IMG_EXT.has(ext))return openNote(rel);try{window.open(await viewUrl(rel),'_blank','noopener');}catch(err){toast('그 파일을 열지 못했습니다',{error:true});}});function starRunBefore(v,idx){let n=0,i=idx-1;while(i>=0&&v[i]==='*'){n++;i--;}return n;}
+function starRunAfter(v,idx){let n=0,i=idx;while(i<v.length&&v[i]==='*'){n++;i++;}return n;}
+function toggleEmphasis(bit){const v=editor.value;const a=editor.selectionStart,b=editor.selectionEnd;let coreStart=a;while(coreStart<b&&v[coreStart]==='*')coreStart++;let coreEnd=b;while(coreEnd>coreStart&&v[coreEnd-1]==='*')coreEnd--;const core=v.slice(coreStart,coreEnd)||'text';const left=starRunBefore(v,coreStart),right=starRunAfter(v,coreEnd);const next=Math.min(left,right)^bit;const rangeStart=coreStart-left,rangeEnd=coreEnd+right;const stars='*'.repeat(next);editor.setRangeText(stars+core+stars,rangeStart,rangeEnd,'select');editor.selectionStart=rangeStart+next;editor.selectionEnd=rangeStart+next+core.length;}
+editor.addEventListener('click',updateStatus);editor.addEventListener('keyup',updateStatus);editor.addEventListener('select',updateStatus);editor.addEventListener('keydown',e=>{const mod=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();if(mod&&!e.shiftKey&&!e.altKey&&['b','i','k'].includes(k)){e.preventDefault();if(k==='k'){const a=editor.selectionStart,b=editor.selectionEnd,sel=editor.value.slice(a,b);const fullLink=sel.match(/^\[([^\]]*)\]\(([^)]+)\)$/);const labelUrl=sel.match(/^([\s\S]*\S)[ \t]+((?:https?:\/\/|www\.)\S+)$/i);const bareUrl=sel.match(/^(https?:\/\/\S+|www\.\S+)$/i);let replacement;if(fullLink)replacement=`${fullLink[1]} ${fullLink[2]}`;else if(bareUrl)replacement=`[HyperLink](${sel})`;else if(labelUrl)replacement=`[${labelUrl[1]}](${labelUrl[2]})`;else if(sel)replacement=`[[${sel}]]`;else replacement='[[]]';editor.setRangeText(replacement,a,b,'select');if(!sel)editor.setSelectionRange(a+2,a+2);}else{toggleEmphasis(k==='b'?2:1);}
+editor.dispatchEvent(new Event('input'));return;}
+if(e.key==='Tab'&&!mod&&!e.altKey){e.preventDefault();editor.setRangeText('  ',editor.selectionStart,editor.selectionEnd,'end');editor.dispatchEvent(new Event('input'));}});
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function downloadNote(path){try{if(current&&current.path===path&&current.kind!=='view')downloadBlob(new Blob([editor.value],{type:'text/plain;charset=utf-8'}),baseOf(path));else downloadBlob(await readFile(path),baseOf(path));}catch(e){toast('내려받지 못했습니다',{error:true});}}
+async function copyToLocal(path){try{const open=current&&current.path===path&&current.kind!=='view';const text=open?editor.value:await readText(path);const dir=inRoot(LOCAL,relOf(dirOf(path)||rootOf(path)));const dest=pathJoin(dir,uniqueName(dir,baseOf(path)));await writeFile(dest,text);if(open)current.saved=editor.value;for(let d=dir;d!==LOCAL;d=dirOf(d))expanded.add(d);saveExpanded();await openNote(dest);toast('브라우저 방식에 사본을 만들었습니다. 여기서 고치면 자동 저장됩니다.',{ms:3500});}catch(e){fsError('브라우저 방식으로 복사',e);}}
+async function moveLocalToFolder(path,isDir){if(!isConnected())return;await flushSave();const root=relOf(path);const keys=isDir?[...local.files.keys()].filter(k=>!root||k.startsWith(root+'/')):[root];const moved=new Map();try{for(const key of keys.sort(sortKo)){const dir=inRoot(FOLDER,dirOf(key));await makeDir(dir);await loadDir(dir,true);const dest=pathJoin(dir,uniqueName(dir,baseOf(key)));await writeFile(dest,local.files.get(key).text);moved.set(inRoot(LOCAL,key),dest);}
+if(isDir){if(root)await removePath(path);else{for(const k of keys)await localDelete(k);for(const d of[...local.dirs])await localDirDelete(d);}}else{await removePath(path);}}catch(e){fsError('폴더로 옮기기',e);}
+const cur=currentPath(),next=cur&&moved.get(cur);dropCache('folder');await loadDir(FOLDER,true);if(next){for(let d=dirOf(next);d&&d!==FOLDER;d=dirOf(d))expanded.add(d);retargetCurrent(next);}
+for(const d of[...expanded].sort((a,b)=>a.length-b.length))if(dirExists(d))await loadDir(d);saveExpanded();if(moved.size)setSource('folder');else renderTree();if(moved.size)toast(`${moved.size}개를 "${vault.root.name}" 폴더로 옮겼습니다. 올릴 때는 GitTool 2번(커밋).`,{ms:4500});}
+async function moveAllLocalToFolder(){if(!local.files.size)return toast('옮길 노트가 없습니다');if(await confirmBox({title:'전체를 폴더로 옮기기',okLabel:'옮기기',body:`브라우저 방식의 노트 ${local.files.size}개를 "${vault.root.name}" 폴더로 옮깁니다(폴더 구조 그대로).\n같은 이름이 이미 있으면 번호를 붙여 따로 둡니다.`}))await moveLocalToFolder(LOCAL,true);}
+const CRC_TABLE=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}
+return t;})();function crc32(bytes){let c=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)c=CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8);return(c^0xFFFFFFFF)>>>0;}
+function makeZip(entries){const enc=new TextEncoder(),now=new Date();const dosTime=(now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1);const dosDate=((now.getFullYear()-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();const parts=[],central=[];let offset=0;for(const e of entries){const name=enc.encode(e.path),data=e.bytes,crc=crc32(data),isDir=e.path.endsWith('/');const head=new DataView(new ArrayBuffer(30));head.setUint32(0,0x04034b50,true);head.setUint16(4,20,true);head.setUint16(6,0x0800,true);head.setUint16(8,0,true);head.setUint16(10,dosTime,true);head.setUint16(12,dosDate,true);head.setUint32(14,crc,true);head.setUint32(18,data.length,true);head.setUint32(22,data.length,true);head.setUint16(26,name.length,true);head.setUint16(28,0,true);parts.push(new Uint8Array(head.buffer),name,data);const cd=new DataView(new ArrayBuffer(46));cd.setUint32(0,0x02014b50,true);cd.setUint16(4,20,true);cd.setUint16(6,20,true);cd.setUint16(8,0x0800,true);cd.setUint16(10,0,true);cd.setUint16(12,dosTime,true);cd.setUint16(14,dosDate,true);cd.setUint32(16,crc,true);cd.setUint32(20,data.length,true);cd.setUint32(24,data.length,true);cd.setUint16(28,name.length,true);cd.setUint32(38,isDir?0x10:0,true);cd.setUint32(42,offset,true);central.push(new Uint8Array(cd.buffer),name);offset+=30+name.length+data.length;}
+const cdSize=central.reduce((s,p)=>s+p.length,0);const end=new DataView(new ArrayBuffer(22));end.setUint32(0,0x06054b50,true);end.setUint16(8,entries.length,true);end.setUint16(10,entries.length,true);end.setUint32(12,cdSize,true);end.setUint32(16,offset,true);return new Blob([...parts,...central,new Uint8Array(end.buffer)],{type:'application/zip'});}
+async function exportLocalZip(){await flushSave();if(!local.files.size&&!local.dirs.size)return toast('내보낼 노트가 없습니다');const enc=new TextEncoder(),entries=[],withFiles=new Set();for(const k of[...local.files.keys()].sort(sortKo)){entries.push({path:k,bytes:enc.encode(local.files.get(k).text)});for(let d=dirOf(k);d;d=dirOf(d))withFiles.add(d);}
+for(const d of[...local.dirs].sort(sortKo))if(!withFiles.has(d))entries.push({path:d+'/',bytes:new Uint8Array(0)});const d=new Date(),p2=n=>String(n).padStart(2,'0');const stamp=`${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}`;downloadBlob(makeZip(entries),`${VAULT_NAME}-노트-${stamp}.zip`);toast(`노트 ${local.files.size}개를 ZIP 으로 내보냈습니다. 클론한 폴더에 풀고 GitTool 로 커밋하면 저장소에 올라갑니다.`,{ms:6000});}
+async function importFiles(fileList,dir=targetDir){if(!fileList.length||!(await leaveOk()))return;dir=writableTarget(dir);const textOnly=isLocal(dir);let first=null,count=0,skipped=0;try{if(!vault.dirs.has(dir))await loadDir(dir);for(const file of fileList){const ext=extOf(file.name);if(nameProblem(file.name)||(textOnly&&(!(TEXT_EXT.has(ext)||ext==='')||file.size>MAX_TEXT_BYTES))){skipped++;continue;}
+const path=pathJoin(dir,uniqueName(dir,file.name));await writeFile(path,file);if(!textOnly)vault.dirs.get(dir).files.set(baseOf(path),{size:file.size});if(!first&&kindOf(path)!=='view')first=path;count++;}
+await loadDir(dir,true);}catch(e){fsError('가져오기',e);}
+if(dir!==rootOf(dir))expanded.add(dir);saveExpanded();renderTree();if(first)await openNote(first);const where=textOnly?'브라우저 방식':'폴더';if(count)toast(`${count}개를 ${where}에 넣었습니다`+(skipped?` (${skipped}개는 건너뜀)`:''),{ms:3000});else toast(textOnly?'브라우저 방식에는 글 파일만 넣을 수 있습니다. 그림 등은 폴더 방식에서 넣으세요':'가져올 수 있는 파일이 없습니다',{error:true,ms:3500});}
+{let depth=0;const veil=$('dropVeil');const hasFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes('Files');window.addEventListener('dragenter',e=>{if(hasFiles(e)){e.preventDefault();depth++;veil.classList.remove('hidden');}});window.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault();});window.addEventListener('dragleave',e=>{if(hasFiles(e)){depth=Math.max(0,depth-1);if(!depth)veil.classList.add('hidden');}});window.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();depth=0;veil.classList.add('hidden');importFiles([...e.dataTransfer.files]);});}
+const appEl=$('app');const isOverlay=()=>matchMedia('(max-width: 760px)').matches;function setSidebar(open){appEl.classList.toggle('side-closed',!open);$('scrim').classList.toggle('hidden',!(open&&isOverlay()));if(!isOverlay())LS.set('side',open?'1':'0');}
+const closeSidebarIfOverlay=()=>{if(isOverlay())setSidebar(false);};$('sideToggle').onclick=()=>setSidebar(appEl.classList.contains('side-closed'));$('scrim').onclick=()=>setSidebar(false);{const rz=$('sideResizer');const setWidth=x=>appEl.style.setProperty('--side',Math.min(560,Math.max(180,x))+'px');rz.addEventListener('pointerdown',e=>{e.preventDefault();rz.setPointerCapture(e.pointerId);appEl.classList.add('resizing');});rz.addEventListener('pointermove',e=>{if(appEl.classList.contains('resizing'))setWidth(e.clientX);});const end=()=>{if(!appEl.classList.contains('resizing'))return;appEl.classList.remove('resizing');LS.set('sideWidth',parseInt(getComputedStyle(appEl).getPropertyValue('--side')));};rz.addEventListener('pointerup',end);rz.addEventListener('pointercancel',end);rz.addEventListener('dblclick',()=>{appEl.style.setProperty('--side','270px');LS.set('sideWidth',270);});}
+function applyTheme(theme,save=true){document.documentElement.setAttribute('data-theme',theme);$('themeIcon').setAttribute('href',theme==='light'?'#i-moon':'#i-sun');if(save)LS.set('theme',theme);}
+$('themeBtn').onclick=()=>applyTheme(document.documentElement.getAttribute('data-theme')==='light'?'dark':'light');function refreshChrome(){$('sourceSeg').querySelectorAll('button').forEach(b=>b.classList.toggle('active',b.dataset.src===source));$('vaultName').textContent=VAULT_NAME;$('vaultName').title=decodeURIComponent(ROOT_URL);$('blankTitle').textContent=sourceTitle(source);const ready=sourceReady(source),writable=ready&&source!=='repo';$('srcInfo').textContent=source==='repo'?(ready?'읽기 전용 · 저장소의 노트':'저장소 색인 없음'):source==='folder'?(ready?'쓰는 대로 폴더에 저장 · 올릴 때 GitTool 2번':'폴더를 골라 연결하세요'):'이 브라우저에 저장 · ZIP 으로 내보내기';$('blankText').textContent=source==='repo'?(ready?'저장소에 올라가 있는 노트를 읽습니다. 쓰려면 위에서 폴더나 브라우저 방식으로 바꾸세요.':'저장소 색인(pages.json)을 찾지 못했습니다. 폴더나 브라우저 방식으로 쓰세요.'):source==='folder'?(ready?'고른 폴더에 .md 파일로 바로 저장합니다. 클론한 폴더를 골랐다면 GitTool 2번(커밋)으로 올리면 됩니다.':canPickFolder?'노트를 저장할 폴더를 고르세요. GitTool 이 클론한 폴더를 고르면 쓰는 대로 그 안에 .md 파일로 저장됩니다.':'이 브라우저는 폴더를 직접 고를 수 없습니다(Chrome · Edge PC 에서 됩니다).'):'이 브라우저에 저장합니다. 맨 위 줄의 ⋯ 메뉴에서 전체를 ZIP 으로 내보내거나, 폴더를 연결했다면 폴더로 옮길 수 있습니다.';$('blankConnect').classList.toggle('hidden',!(source==='folder'&&!ready&&canPickFolder));$('blankConnect').textContent=vault.saved?`"${vault.saved.name}" 다시 연결`:'폴더 고르기';$('blankNew').classList.toggle('hidden',!writable);$('newNoteBtn').title=writable?'새 노트 (Alt+N)':'새 노트 (Alt+N) — 이 방식에는 쓸 수 없어 브라우저 방식에 만듭니다';}
+$('sourceSeg').onclick=e=>{const b=e.target.closest('button');if(b&&b.dataset.src!==source)setSource(b.dataset.src);};async function reopenFolderNote(){if(!current||!isFolder(current.path))return;const path=current.path;cancelPendingSave();current=null;closeNote();if(isConnected()){await revealPath(path);if(hasFile(path))await openNote(path);}}
+async function connectFlow(pick=false){if(!(await leaveOk()))return;const ok=(!pick&&vault.saved)?(await regrantFolder())||(await connectFolder()):await connectFolder();if(!ok)return;for(const d of[...expanded].sort((a,b)=>a.length-b.length))if(isFolder(d)&&dirExists(d))await loadDir(d);await reopenFolderNote();setSource('folder');toast(`"${vault.root.name}" 폴더를 연결했습니다. 이제 쓰는 대로 이 폴더에 저장됩니다.`,{ms:4000});}
+async function disconnectFlow(){await flushSave();await disconnectFolder();await reopenFolderNote();setSource('folder');toast('폴더 연결을 끊었습니다');}
+$('blankConnect').onclick=()=>connectFlow();function focusTitle(){const t=$('titleInput');if(t.disabled||t.readOnly)return;t.focus();const dot=t.value.lastIndexOf('.');t.setSelectionRange(0,dot>0?dot:t.value.length);}
+function focusFilter(){setSidebar(true);const f=$('filterInput');f.focus();f.select();}
+const newNote=async()=>{if(await createNote())focusTitle();};$('newNoteBtn').onclick=newNote;$('blankNew').onclick=newNote;$('newFolderBtn').onclick=()=>createFolder();$('blankFind').onclick=()=>focusFilter();$('refreshBtn').onclick=refreshVault;$('saveBtn').onclick=saveNote;$('linkBtn').onclick=()=>current&&copyNoteLink(current.path);$('viewSeg').onclick=e=>{const b=e.target.closest('button');if(b)setView(b.dataset.view);};async function loadExpanded(){for(const d of[...expanded].sort((a,b)=>a.length-b.length))if(dirExists(d))await loadDir(d);}
+async function refreshVault(){await flushSave();resetCache();await Promise.all([loadDir('',true),isConnected()?loadDir(FOLDER,true):null]);await loadExpanded();renderTree();refreshChrome();if(current&&!isDirty())await openNote(current.path,{force:true});toast(sourceReady(source)?'목록을 다시 읽었습니다':'이 방식의 목록을 읽지 못했습니다',{error:!sourceReady(source)});}
+document.addEventListener('click',hideMenu);window.addEventListener('resize',hideMenu);window.addEventListener('blur',hideMenu);document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(modalClose)return modalClose();hideMenu();if(isOverlay()&&!appEl.classList.contains('side-closed'))setSidebar(false);return;}
+if(modalClose)return;const mod=e.ctrlKey||e.metaKey,k=e.key.toLowerCase();if(e.altKey&&!mod&&k==='n'){e.preventDefault();newNote();}
+else if(mod&&!e.shiftKey&&k==='o'){e.preventDefault();focusFilter();}
+else if(mod&&!e.shiftKey&&k==='e'){e.preventDefault();toggleReadView();}
+else if(mod&&e.shiftKey&&k==='v'){e.preventDefault();toggleReadView();}
+else if(mod&&!e.shiftKey&&k==='s'){e.preventDefault();saveNote();}
+else if(mod&&e.key==='\\'){e.preventDefault();setSidebar(appEl.classList.contains('side-closed'));}});(async function init(){applyTheme(LS.get('theme','dark'),false);const w=parseInt(LS.get('sideWidth',''));if(w)appEl.style.setProperty('--side',w+'px');setSidebar(isOverlay()?false:LS.get('side','1')!=='0');setView(['edit','split','read'].includes(LS.get('view'))?LS.get('view'):(isOverlay()?'edit':'split'));document.title=VAULT_NAME;$('sourceSeg').querySelector('[data-src="folder"]').disabled=!canPickFolder;if(!canPickFolder)$('sourceSeg').querySelector('[data-src="folder"]').title='이 브라우저는 폴더를 직접 고를 수 없습니다 (Chrome · Edge PC 에서 됩니다)';await loadLocal();syncLocalDirs();if(!local.persistent)toast('이 브라우저에서는 저장 공간을 쓸 수 없어, 브라우저 방식의 노트가 탭을 닫으면 사라집니다',{error:true,ms:6000});await Promise.all([restoreFolder(),loadDir('')]);const gh=githubRepoUrl();if(gh){$('repoLink').href=gh;$('repoLink').classList.remove('hidden');}
+await loadExpanded();const fromHash=pathFromHash(),start=fromHash||LS.get('last','');const savedSrc=LS.get('source');setSource(start?sourceOf(start):SOURCES[savedSrc]?savedSrc:vault.repoOk?'repo':isConnected()?'folder':'local');refreshHeader();if(start&&sourceReady(sourceOf(start))){await revealPath(start);if(hasFile(start)||fromHash)await openNote(start);}})();
+</script>
+</body>
+</html>
